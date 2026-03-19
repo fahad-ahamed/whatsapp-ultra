@@ -1,46 +1,21 @@
 # Dependencies
 node_modules/
-bun.lock
 
-# Next.js
+# Build outputs
 .next/
 out/
-
-# Environment
-.env
-.env.local
-.env*.local
-
-# Database
-db/
-*.db
-*.db-journal
+dist/
+build/
 
 # Logs
 *.log
-dev.log
-server.log
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build
-dist/
-build/
-
-# Scripts
-.zscripts/
-
-# Uploads (user-generated content)
-public/uploads/
-
-# Lock files
-package-lock.json
-yarn.lock
