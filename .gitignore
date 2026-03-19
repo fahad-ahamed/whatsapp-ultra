@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# Next.js
+.next/
+out/
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Database
+db/
+*.db
+*.db-journal
+
+# Logs
+*.log
+dev.log
+server.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
+# Scripts
+.zscripts/
+
+# Uploads (user-generated content)
+public/uploads/
+
+# Lock files
+package-lock.json
+yarn.lock

@@ -1,0 +1,267 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model - Core user information
+model User {
+  id          String   @id @default(cuid())
+  phoneNumber String   @unique // hashed phone number
+  name        String?
+  profilePic  String?
+  lastSeen    DateTime?
+  status      String?  // custom status message
+  about       String?  // about/bio section
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  devices     Device[]
+  chatMembers ChatMember[]
+  sentMessages    Message[]  @relation("SentMessages")
+  receivedStatus  MessageStatus[]
+  groups      GroupMember[]
+  statuses    Status[]
+  statusViews StatusView[]
+  contacts    Contact[]  @relation("UserContacts")
+  contactOf   Contact[]  @relation("ContactOf")
+  keyBundles  KeyBundle[]
+
+  @@map("users")
+}
+
+// Device model - For multi-device support
+model Device {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceName String
+  publicKey  String   // Device public key for encryption
+  lastActive DateTime?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  keyBundles KeyBundle[]
+
+  @@map("devices")
+}
+
+// Chat model - Both individual and group chats
+model Chat {
+  id        String      @id @default(cuid())
+  type      ChatType    @default(individual) // individual or group
+  name      String?     // For group chats
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  members   ChatMember[]
+  messages  Message[]
+  group     Group?
+
+  @@map("chats")
+}
+
+// ChatMember model - Membership relation between users and chats
+model ChatMember {
+  id       String     @id @default(cuid())
+  chatId   String
+  userId   String
+  role     MemberRole @default(member)
+  joinedAt DateTime   @default(now())
+  leftAt   DateTime?
+
+  chat     Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@map("chat_members")
+}
+
+// Message model - Chat messages with encryption support
+model Message {
+  id          String       @id @default(cuid())
+  chatId      String
+  senderId    String
+  content     String       // Encrypted message content
+  messageType MessageType  @default(text)
+  mediaUrl    String?
+  mediaName   String?
+  mediaSize   Int?
+  timestamp   DateTime     @default(now())
+  isEdited    Boolean      @default(false)
+  isDeleted   Boolean      @default(false)
+  replyToId   String?
+
+  chat        Chat         @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo     Message?     @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies     Message[]    @relation("MessageReplies")
+  statuses    MessageStatus[]
+  deletedFor  DeletedMessage[]
+
+  @@index([chatId, timestamp])
+  @@map("messages")
+}
+
+// DeletedMessage - Track messages deleted for specific users
+model DeletedMessage {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  deletedAt DateTime @default(now())
+
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("deleted_messages")
+}
+
+// MessageStatus model - Track delivery and read status per user
+model MessageStatus {
+  id          String    @id @default(cuid())
+  messageId   String
+  userId      String
+  deliveredAt DateTime?
+  readAt      DateTime?
+
+  message     Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@map("message_statuses")
+}
+
+// Group model - Group-specific information
+model Group {
+  id          String   @id @default(cuid())
+  chatId      String   @unique
+  name        String
+  description String?
+  adminId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  chat        Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  members     GroupMember[]
+
+  @@map("groups")
+}
+
+// GroupMember model - Group membership with roles
+model GroupMember {
+  id        String     @id @default(cuid())
+  groupId   String
+  userId    String
+  role      MemberRole @default(member)
+  joinedAt  DateTime   @default(now())
+
+  group     Group      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("group_members")
+}
+
+// Status model - WhatsApp-like status/stories
+model Status {
+  id        String     @id @default(cuid())
+  userId    String
+  mediaUrl  String
+  caption   String?
+  type      StatusType @default(image)
+  expiresAt DateTime
+  createdAt DateTime   @default(now())
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views     StatusView[]
+
+  @@index([userId, createdAt])
+  @@map("statuses")
+}
+
+// StatusView model - Track who viewed statuses
+model StatusView {
+  id        String   @id @default(cuid())
+  statusId  String
+  viewerId  String
+  viewedAt  DateTime @default(now())
+
+  status    Status   @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  viewer    User     @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([statusId, viewerId])
+  @@map("status_views")
+}
+
+// Contact model - User's contacts
+model Contact {
+  id           String   @id @default(cuid())
+  userId       String   // Owner of this contact
+  contactUserId String? // Link to actual user if exists
+  displayName  String?
+  isBlocked    Boolean  @default(false)
+  isFavorite   Boolean  @default(false)
+  addedAt      DateTime @default(now())
+
+  user         User     @relation("UserContacts", fields: [userId], references: [id], onDelete: Cascade)
+  contactUser  User?    @relation("ContactOf", fields: [contactUserId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, contactUserId])
+  @@map("contacts")
+}
+
+// KeyBundle model - Signal Protocol key bundles for E2E encryption
+model KeyBundle {
+  id            String   @id @default(cuid())
+  userId        String
+  deviceId      String
+  identityKey   String
+  signedPreKey  String
+  signedPreKeySignature String
+  preKeys       String   // JSON array of prekeys
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  device        Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@map("key_bundles")
+}
+
+// Enums
+enum ChatType {
+  individual
+  group
+}
+
+enum MemberRole {
+  admin
+  member
+}
+
+enum MessageType {
+  text
+  image
+  video
+  audio
+  document
+  voice
+  sticker
+  location
+  contact
+}
+
+enum StatusType {
+  image
+  video
+  text
+}
